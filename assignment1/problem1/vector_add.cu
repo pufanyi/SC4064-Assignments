@@ -1,19 +1,33 @@
 #include <cuda_runtime.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <cmath>
+#include <cstdlib>
+#include <format>
+#include <iostream>
 
 #define CHECK_CUDA(call)                                                   \
     do {                                                                   \
         cudaError_t err = call;                                            \
         if (err != cudaSuccess) {                                          \
-            fprintf(stderr, "CUDA error at %s:%d: %s\n", __FILE__,        \
-                    __LINE__, cudaGetErrorString(err));                     \
+            std::cerr << std::format("CUDA error at {}:{}: {}", __FILE__,  \
+                                     __LINE__, cudaGetErrorString(err))     \
+                      << std::endl;                                        \
             exit(EXIT_FAILURE);                                            \
         }                                                                  \
     } while (0)
 
 #define N (1 << 30)
+
+__global__ void initRandom(float *data, int n, unsigned int seed) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        // Simple hash-based pseudo-random
+        unsigned int h = seed ^ (unsigned int)idx;
+        h ^= h >> 16;
+        h *= 0x45d9f3b;
+        h ^= h >> 16;
+        data[idx] = (float)(h & 0xFFFFFF) / (float)0xFFFFFF * 100.0f;
+    }
+}
 
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -30,15 +44,8 @@ int main() {
     float *h_b = (float *)malloc(bytes);
     float *h_c = (float *)malloc(bytes);
     if (!h_a || !h_b || !h_c) {
-        fprintf(stderr, "Host memory allocation failed\n");
+        std::cerr << "Host memory allocation failed" << std::endl;
         exit(EXIT_FAILURE);
-    }
-
-    // Initialize with random values in [0.0f, 100.0f]
-    srand(42);
-    for (long i = 0; i < N; i++) {
-        h_a[i] = ((float)rand() / RAND_MAX) * 100.0f;
-        h_b[i] = ((float)rand() / RAND_MAX) * 100.0f;
     }
 
     // Allocate device memory
@@ -47,9 +54,12 @@ int main() {
     CHECK_CUDA(cudaMalloc(&d_b, bytes));
     CHECK_CUDA(cudaMalloc(&d_c, bytes));
 
-    // Copy inputs to device
-    CHECK_CUDA(cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice));
+    // Initialize on GPU (much faster than CPU rand() loop)
+    int initBlock = 256;
+    int initGrid = (N + initBlock - 1) / initBlock;
+    initRandom<<<initGrid, initBlock>>>(d_a, N, 42);
+    initRandom<<<initGrid, initBlock>>>(d_b, N, 137);
+    CHECK_CUDA(cudaDeviceSynchronize());
 
     // Test different block sizes
     int blockSizes[] = {32, 64, 128, 256};
@@ -59,10 +69,12 @@ int main() {
     CHECK_CUDA(cudaEventCreate(&start));
     CHECK_CUDA(cudaEventCreate(&stop));
 
-    printf("Vector Addition: N = %d (2^30)\n", N);
-    printf("%-15s %-15s %-15s %-15s\n", "Block Size", "Grid Size",
-           "Time (ms)", "GFLOPS");
-    printf("-----------------------------------------------------------\n");
+    std::cout << std::format("Vector Addition: N = {} (2^30)", N) << std::endl;
+    std::cout << std::format("{:<15}{:<15}{:<15}{:<15}", "Block Size",
+                             "Grid Size", "Time (ms)", "GFLOPS")
+              << std::endl;
+    std::cout << "-----------------------------------------------------------"
+              << std::endl;
 
     for (int t = 0; t < numTests; t++) {
         int blockSize = blockSizes[t];
@@ -85,22 +97,28 @@ int main() {
         double flops = (double)N;
         double gflops = flops / (ms * 1e6);
 
-        printf("%-15d %-15d %-15.3f %-15.4f\n", blockSize, gridSize, ms,
-               gflops);
+        std::cout << std::format("{:<15}{:<15}{:<15.3f}{:<15.4f}", blockSize,
+                                 gridSize, ms, gflops)
+                  << std::endl;
     }
 
     // Verify result (using the last run)
+    CHECK_CUDA(cudaMemcpy(h_a, d_a, bytes, cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(h_b, d_b, bytes, cudaMemcpyDeviceToHost));
     CHECK_CUDA(cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost));
     bool correct = true;
     for (long i = 0; i < 1000; i++) {
-        if (fabsf(h_c[i] - (h_a[i] + h_b[i])) > 1e-3f) {
+        if (std::fabs(h_c[i] - (h_a[i] + h_b[i])) > 1e-3f) {
             correct = false;
-            fprintf(stderr, "Mismatch at index %ld: %f != %f + %f\n", i,
-                    h_c[i], h_a[i], h_b[i]);
+            std::cerr << std::format("Mismatch at index {}: {} != {} + {}", i,
+                                     h_c[i], h_a[i], h_b[i])
+                      << std::endl;
             break;
         }
     }
-    printf("\nVerification: %s\n", correct ? "PASSED" : "FAILED");
+    std::cout << std::format("\nVerification: {}",
+                             correct ? "PASSED" : "FAILED")
+              << std::endl;
 
     // Cleanup
     CHECK_CUDA(cudaEventDestroy(start));
