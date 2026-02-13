@@ -1,0 +1,232 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Layout ──────────────────────────────────────────────
+\usepackage[margin=2cm, top=2.5cm, bottom=2cm]{geometry}
+
+% ── Fonts ───────────────────────────────────────────────
+\usepackage{palatino}
+\usepackage[T1]{fontenc}
+\usepackage{courier}
+
+% ── Colours ─────────────────────────────────────────────
+\usepackage[table,dvipsnames]{xcolor}
+\definecolor{accent}{HTML}{2E5090}
+\definecolor{tableheader}{HTML}{2E5090}
+\definecolor{tablerow}{HTML}{EBF0FA}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{darktext}{HTML}{333333}
+
+% ── Packages ────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent, citecolor=accent}
+
+% ── Section styling ─────────────────────────────────────
+\titleformat{\section}
+  {\Large\bfseries\color{accent}}
+  {\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{accent!80!black}}
+  {\thesubsection}{0.5em}{}
+
+\titlespacing*{\section}{0pt}{1.6ex plus 0.4ex minus 0.2ex}{1.0ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus 0.3ex minus 0.1ex}{0.5ex plus 0.1ex}
+
+% ── Header / footer ────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{accent}\leaders\hrule height \headrulewidth\hfill}}
+\fancyhead[L]{\small\color{accent}\textbf{SC4064} Assignment 1}
+\fancyhead[R]{\small\color{accent}Pu Fanyi}
+\fancyfoot[C]{\small\color{gray}\thepage}
+
+% ── Table helpers ───────────────────────────────────────
+\newcommand{\thead}[1]{\textbf{\color{white}#1}}
+\newcolumntype{C}{>{\centering\arraybackslash}p{2.8cm}}
+
+% ── Paragraph ───────────────────────────────────────────
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\color{darktext}
+
+% ── Inline code ─────────────────────────────────────────
+\newcommand{\code}[1]{\texttt{\small\colorbox{codebg}{#1}}}
+
+% ── Title ───────────────────────────────────────────────
+\title{%
+  \vspace{-1.8cm}%
+  {\color{accent}\rule{\textwidth}{2pt}}\\[0.6em]%
+  {\LARGE\bfseries\color{accent} SC4064 Assignment 1 Report}\\[0.2em]%
+  {\large\color{gray} CUDA Programming: Vector \& Matrix Operations}\\[0.4em]%
+  {\color{accent}\rule{\textwidth}{0.8pt}}%
+}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+\vspace{-1.6cm}
+
+All programs were compiled with \code{nvcc -O2 -std=c++20} and tested on the platform described in Table~\ref{tab:env}. CUDA events were used for kernel timing; each kernel was preceded by a warm-up run.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\bfseries\color{accent}}l l}
+\rowcolor{tableheader}
+\thead{Component} & \thead{Details} \\
+\rowcolor{tablerow} OS             & Ubuntu 24.04.4 LTS (Noble Numbat) \\
+                    Kernel         & Linux 5.14.0-284.25.1.el9\_2.x86\_64 \\
+\rowcolor{tablerow} CPU            & 2$\times$ Intel Xeon Gold 6448Y (128 threads) \\
+                    RAM            & 2.0\,TiB \\
+\rowcolor{tablerow} GPU            & 8$\times$ NVIDIA H100 80\,GB HBM3 \\
+                    NVIDIA Driver  & 550.90.07 \\
+\rowcolor{tablerow} CUDA Toolkit   & 13.1 (V13.1.115) \\
+                    GCC/G++        & 14.2.0 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Experimental environment.}
+\label{tab:env}
+\end{table}
+\vspace{-0.4cm}
+
+% ════════════════════════════════════════════════════════
+\section{Problem 1: Vector Addition}
+% ════════════════════════════════════════════════════════
+
+\textbf{Setup.}\quad Two vectors of $N = 2^{30} \approx 1.07 \times 10^9$ single-precision floats are added element-wise: $C[i] = A[i] + B[i]$. Both vectors are initialised directly on the GPU using a hash-based pseudo-random kernel, producing values in $[0, 100]$. Each thread computes one element using global index $\text{idx} = \text{blockIdx.x} \times \text{blockDim.x} + \text{threadIdx.x}$, with a bounds check $\text{idx} < N$. Four block sizes were tested; the grid size is $\lceil N / \text{blockSize} \rceil$.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2.8cm}
+                >{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2cm}}
+\rowcolor{tableheader}
+\thead{Block Size} & \thead{Grid Size} & \thead{Time (ms)} & \thead{GFLOPS} \\
+\rowcolor{tablerow} 32  & 33,554,432 & 20.161 & 53.26 \\
+                    64  & 16,777,216 & 10.083 & 106.49 \\
+\rowcolor{tablerow} 128 & 8,388,608  & 5.070  & 211.76 \\
+                    256 & 4,194,304  & 4.597  & \textbf{233.57} \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Vector addition performance ($N = 2^{30}$, 1 FLOP per element).}
+\end{table}
+
+\textbf{Analysis.}\quad Performance improves $4\times$ from block size 32 to 128, with diminishing gains at 256. A block of 32 threads equals a single warp, under-utilising the SM's latency-hiding capacity. Larger blocks (128--256) allow more concurrent warps per SM, improving occupancy. Since vector addition is \emph{memory-bandwidth-bound} (1 FLOP per 12\,bytes transferred), GFLOPS reflects effective memory throughput. The peak 233.57\,GFLOPS at block size 256 corresponds to ${\sim}2.8$\,TB/s effective bandwidth, near the H100's HBM3 limit.
+
+% ════════════════════════════════════════════════════════
+\section{Problem 2: Matrix Addition}
+% ════════════════════════════════════════════════════════
+
+\textbf{Setup.}\quad Two $8192 \times 8192$ matrices ($67{,}108{,}864$ elements) are added element-wise: $C[i][j] = A[i][j] + B[i][j]$. Both matrices are initialised on the GPU with pseudo-random values in $[0, 100]$. Two kernel configurations are compared.
+
+\subsection{1D Configuration}
+
+The matrix is treated as a flat array. Each thread computes one element:
+\vspace{-0.3em}
+\[
+\text{idx} = \text{blockIdx.x} \cdot \text{blockDim.x} + \text{threadIdx.x}, \quad i = \lfloor \text{idx} / \text{COLS} \rfloor, \quad j = \text{idx} \bmod \text{COLS}
+\]
+\vspace{-0.6em}
+
+Since the matrix uses row-major storage, linear index \code{idx} directly addresses element $(i, j)$.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2.8cm}
+                >{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2cm}}
+\rowcolor{tableheader}
+\thead{Block Size} & \thead{Grid Size} & \thead{Time (ms)} & \thead{GFLOPS} \\
+\rowcolor{tablerow} 64  & 1,048,576 & 0.639 & 105.02 \\
+                    128 & 524,288   & 0.324 & 207.13 \\
+\rowcolor{tablerow} 256 & 262,144   & 0.292 & \textbf{229.65} \\
+                    512 & 131,072   & 0.301 & 222.79 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Matrix addition --- 1D configuration.}
+\end{table}
+
+\subsection{2D Configuration}
+
+A 2D grid of 2D thread blocks maps directly to matrix coordinates:
+\vspace{-0.3em}
+\[
+i = \text{blockIdx.y} \cdot \text{blockDim.y} + \text{threadIdx.y}, \qquad j = \text{blockIdx.x} \cdot \text{blockDim.x} + \text{threadIdx.x}
+\]
+\vspace{-0.6em}
+
+The linear memory offset is $i \times \text{COLS} + j$.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2.8cm}
+                >{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2cm}}
+\rowcolor{tableheader}
+\thead{Block Size} & \thead{Grid Size} & \thead{Time (ms)} & \thead{GFLOPS} \\
+\rowcolor{tablerow} $(16, 16)$ & $(512, 512)$   & 0.310 & 216.76 \\
+                    $(32, 8)$  & $(256, 1024)$  & 0.300 & \textbf{223.36} \\
+\rowcolor{tablerow} $(32, 16)$ & $(256, 512)$   & 0.315 & 212.87 \\
+                    $(32, 32)$ & $(256, 256)$   & 0.339 & 197.83 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Matrix addition --- 2D configuration.}
+\end{table}
+
+\textbf{Performance comparison.}\quad The best 1D result (block 256, \textbf{229.65}\,GFLOPS) slightly outperforms the best 2D result ($(32, 8)$, 223.36\,GFLOPS). Both perform identical memory accesses (row-major, coalesced); differences arise from scheduling and occupancy. In the 2D case, $(32, 32)$ blocks of 1024 threads limit concurrent blocks per SM, slightly hurting performance. The $(32, 8)$ variant with 256 threads per block performs best because the $x$-dimension aligns with consecutive memory addresses, ensuring coalesced access within each warp.
+
+% ════════════════════════════════════════════════════════
+\section{Problem 3: Matrix Multiplication}
+% ════════════════════════════════════════════════════════
+
+\textbf{Setup.}\quad $C = A \times B$ where $A, B, C \in \mathbb{R}^{8192 \times 8192}$. Both $A$ and $B$ are initialised on the GPU with pseudo-random values in $[0, 1]$. Each thread computes one element of~$C$:
+\vspace{-0.3em}
+\[
+C(i, j) = \sum_{k=0}^{K-1} A(i, k) \cdot B(k, j)
+\]
+\vspace{-0.6em}
+
+\textbf{Thread-to-element mapping.}\quad Using 2D blocks and grid:
+$i = \text{blockIdx.y} \cdot \text{blockDim.y} + \text{threadIdx.y}$,\;
+$j = \text{blockIdx.x} \cdot \text{blockDim.x} + \text{threadIdx.x}$,
+with row-major storage: $A(i,k)$ at \code{A[i*K+k]}, $B(k,j)$ at \code{B[k*N+j]}, $C(i,j)$ at \code{C[i*N+j]}.
+
+\textbf{Inner product.}\quad Each thread loops over $k = 0, \ldots, K{-}1$, accumulating $\texttt{sum} \mathrel{+}= A[i \cdot K + k] \times B[k \cdot N + j]$ in a register, then writes to $C[i \cdot N + j]$. Total FLOPs: $2 M N K = 2 \times 8192^3 \approx 1.1 \times 10^{12}$.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2.8cm}
+                >{\centering\arraybackslash}p{2cm}
+                >{\centering\arraybackslash}p{2cm}}
+\rowcolor{tableheader}
+\thead{Block Size} & \thead{Grid Size} & \thead{Time (ms)} & \thead{GFLOPS} \\
+\rowcolor{tablerow} $(8, 8)$   & $(1024, 1024)$ & 327.22 & 3,360.18 \\
+                    $(16, 16)$ & $(512, 512)$   & 213.22 & 5,156.67 \\
+\rowcolor{tablerow} $(32, 32)$ & $(256, 256)$   & 185.61 & \textbf{5,923.77} \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Matrix multiplication performance ($8192 \times 8192$, $2MNK$ FLOPs).}
+\end{table}
+
+\textbf{Performance comparison.}\quad $(32, 32)$ achieves \textbf{5,923.77}\,GFLOPS --- a $1.76\times$ speedup over $(8, 8)$. Although matrix multiplication has high arithmetic intensity ($2K$ FLOPs per output element), this naive kernel is \emph{memory-bandwidth-limited} because every thread independently loads an entire row of $A$ and column of $B$ from global memory: each element of $A$ is redundantly fetched $N$ times and each element of $B$ is fetched $M$ times across all threads. Note that the accesses to $B$ are coalesced (threads in a warp differ in \texttt{col}, so \code{B[k*N+col]} addresses consecutive locations), and accesses to the same row of $A$ can be served from L1/L2 cache across threads sharing the same \texttt{row}. Larger blocks improve performance by increasing warp-level parallelism and cache utilisation: $(8,8)$ blocks contain only 2 warps, limiting SM occupancy and causing more frequent cache evictions, whereas $(32,32)$ blocks with 32 warps keep the SM fully occupied. Even so, the best result (5.9\,TFLOPS) reaches only ${\sim}12\%$ of the H100's peak (${\sim}51$\,TFLOPS FP32), confirming that shared-memory tiling would be needed to eliminate the redundant global memory traffic and approach peak throughput.
+
+\end{document}
