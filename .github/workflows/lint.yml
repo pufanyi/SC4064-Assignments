@@ -38,9 +38,6 @@ jobs:
         run: |
           STUBS_DIR="$GITHUB_WORKSPACE/.clang-tidy-cuda-stubs"
           CUDA_PATH="/usr/local/cuda-12.6"
-          echo "CUDA_PATH=$CUDA_PATH"
-          ls "$CUDA_PATH" || true
-          ls "$CUDA_PATH/include/cuda_runtime.h" || true
           exit_code=0
           for f in $(find . -name '*.cu' -not -path '*/build/*'); do
             echo "=== $f ==="
