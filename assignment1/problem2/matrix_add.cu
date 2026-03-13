@@ -170,7 +170,7 @@ int main() {
     struct BlockConfig {
         int x, y;
     };
-    BlockConfig blockConfigs2D[] = {{16, 16}, {32, 8}, {32, 16}, {32, 32}};
+    BlockConfig blockConfigs2D[] = {{.x = 16, .y = 16}, {.x = 32, .y = 8}, {.x = 32, .y = 16}, {.x = 32, .y = 32}};
     int numTests2D = sizeof(blockConfigs2D) / sizeof(blockConfigs2D[0]);
 
     for (int t = 0; t < numTests2D; t++) {

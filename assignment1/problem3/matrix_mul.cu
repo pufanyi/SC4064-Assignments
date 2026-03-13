@@ -68,7 +68,7 @@ __global__ void matrixMul(const float *A, const float *B, float *C,
 // CPU reference (partial) for verification
 // ============================================================
 void matrixMulCPU(const float *A, const float *B, float *C,
-                  int m, int k, int n, int numElements) {
+                  int /*m*/, int k, int n, int numElements) {
     for (int idx = 0; idx < numElements; idx++) {
         int row = idx / n;
         int col = idx % n;
@@ -133,7 +133,7 @@ int main() {
     struct BlockConfig {
         int x, y;
     };
-    BlockConfig configs[] = {{8, 8}, {16, 16}, {32, 32}};
+    BlockConfig configs[] = {{.x = 8, .y = 8}, {.x = 16, .y = 16}, {.x = 32, .y = 32}};
     int numConfigs = sizeof(configs) / sizeof(configs[0]);
 
     // Total FLOPs: 2 * M * N * K (K multiplications + K additions per element)

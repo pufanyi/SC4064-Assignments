@@ -1,0 +1,41 @@
+---
+# clang-tidy configuration for CUDA projects
+#
+# Run via: ./run-clang-tidy.sh file.cu
+#   or:    clang-tidy-20 file.cu -- --cuda-gpu-arch=sm_70 -std=c++20 \
+#            -x cuda --cuda-path=/usr/local/cuda \
+#            -isystem .clang-tidy-cuda-stubs
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  clang-analyzer-*,
+  misc-*,
+  -misc-no-recursion,
+  -misc-use-anonymous-namespace,
+  -misc-include-cleaner,
+  -misc-const-correctness,
+  -misc-use-internal-linkage,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -modernize-use-auto,
+  -modernize-macro-to-enum,
+  performance-*,
+  -performance-avoid-endl,
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-isolate-declaration,
+  -readability-identifier-naming,
+  -readability-uppercase-literal-suffix,
+  -readability-implicit-bool-conversion,
+  -readability-math-missing-parentheses,
+
+WarningsAsErrors: ''
+
+CheckOptions: []
