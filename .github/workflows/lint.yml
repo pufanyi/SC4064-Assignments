@@ -28,16 +28,16 @@ jobs:
           sudo apt-get install -y clang-tidy-20
 
       - name: Install CUDA 11.8 headers
-        uses: Jimver/cuda-toolkit@v0.2.21
-        with:
-          cuda: "11.8.0"
-          method: network
-          sub-packages: '["cuda-cudart-dev", "cuda-nvcc"]'
-          non-cuda-sub-packages: '[]'
+        run: |
+          wget -qO- https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb -O /tmp/cuda-keyring.deb
+          sudo dpkg -i /tmp/cuda-keyring.deb
+          sudo apt-get update
+          sudo apt-get install -y cuda-cudart-dev-11-8 cuda-nvcc-11-8
 
       - name: Run clang-tidy
         run: |
           STUBS_DIR="$GITHUB_WORKSPACE/.clang-tidy-cuda-stubs"
+          CUDA_PATH="/usr/local/cuda-11.8"
           exit_code=0
           for f in $(find . -name '*.cu' -not -path '*/build/*'); do
             echo "=== $f ==="
