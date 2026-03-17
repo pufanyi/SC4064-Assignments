@@ -8,7 +8,7 @@ STUBS_DIR="$SCRIPT_DIR/.clang-tidy-cuda-stubs"
 CUDA_PATH="${CUDA_PATH:-/usr/local/cuda}"
 GPU_ARCH="${GPU_ARCH:-sm_70}"
 
-EXTRA_ARGS="-- --cuda-gpu-arch=$GPU_ARCH -std=c++20 -x cuda --cuda-path=$CUDA_PATH -isystem $STUBS_DIR"
+EXTRA_ARGS="-- --cuda-gpu-arch=$GPU_ARCH -std=c++20 -x cuda --cuda-path=$CUDA_PATH -isystem $STUBS_DIR -include $STUBS_DIR/cuda_launch_compat.h"
 
 if [ $# -eq 0 ]; then
     files=$(find "$SCRIPT_DIR" -name '*.cu' -not -path '*/build/*')

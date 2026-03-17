@@ -6,12 +6,14 @@ on:
       - "**.cu"
       - "**.cuh"
       - ".clang-tidy"
+      - ".clang-tidy-cuda-stubs/**"
       - ".github/workflows/lint.yml"
   pull_request:
     paths:
       - "**.cu"
       - "**.cuh"
       - ".clang-tidy"
+      - ".clang-tidy-cuda-stubs/**"
       - ".github/workflows/lint.yml"
 
 jobs:
@@ -45,6 +47,7 @@ jobs:
               --cuda-gpu-arch=sm_70 -std=c++20 -x cuda \
               --cuda-path="$CUDA_PATH" \
               -isystem "$STUBS_DIR" \
+              -include "$STUBS_DIR/cuda_launch_compat.h" \
               -nocudalib \
               || exit_code=1
           done

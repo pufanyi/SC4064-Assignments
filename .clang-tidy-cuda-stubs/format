@@ -1,0 +1,18 @@
+// Stub: <format> — minimal declarations for clang-tidy
+// Ubuntu 22.04 ships GCC 11 whose libstdc++ lacks <format> (added in GCC 13).
+// This stub provides just enough for clang-tidy to parse code that uses
+// std::format without errors.
+
+#ifndef FORMAT_STUB_H_
+#define FORMAT_STUB_H_
+
+#include <string>
+
+namespace std {
+template <typename... Args>
+string format(const char * /*fmt*/, Args &&.../*args*/) {
+    return {};
+}
+} // namespace std
+
+#endif // FORMAT_STUB_H_
