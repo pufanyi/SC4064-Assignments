@@ -1,0 +1,235 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Layout ──────────────────────────────────────────────
+\usepackage[margin=2cm, top=2.5cm, bottom=2cm]{geometry}
+
+% ── Fonts ───────────────────────────────────────────────
+\usepackage{palatino}
+\usepackage[T1]{fontenc}
+\usepackage{courier}
+
+% ── Colours ─────────────────────────────────────────────
+\usepackage[table,dvipsnames]{xcolor}
+\definecolor{accent}{HTML}{2E5090}
+\definecolor{tableheader}{HTML}{2E5090}
+\definecolor{tablerow}{HTML}{EBF0FA}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{darktext}{HTML}{333333}
+
+% ── Packages ────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent, citecolor=accent}
+
+% ── Section styling ─────────────────────────────────────
+\titleformat{\section}
+  {\Large\bfseries\color{accent}}
+  {\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{accent!80!black}}
+  {\thesubsection}{0.5em}{}
+
+\titlespacing*{\section}{0pt}{1.6ex plus 0.4ex minus 0.2ex}{1.0ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus 0.3ex minus 0.1ex}{0.5ex plus 0.1ex}
+
+% ── Header / footer ────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{accent}\leaders\hrule height \headrulewidth\hfill}}
+\fancyhead[L]{\small\color{accent}\textbf{SC4064} Assignment 2}
+\fancyhead[R]{\small\color{accent}Pu Fanyi}
+\fancyfoot[C]{\small\color{gray}\thepage}
+
+% ── Table helpers ───────────────────────────────────────
+\newcommand{\thead}[1]{\textbf{\color{white}#1}}
+\newcolumntype{C}{>{\centering\arraybackslash}p{2.8cm}}
+
+% ── Paragraph ───────────────────────────────────────────
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\color{darktext}
+
+% ── Inline code ─────────────────────────────────────────
+\newcommand{\code}[1]{\texttt{\small\colorbox{codebg}{#1}}}
+
+% ── Title ───────────────────────────────────────────────
+\title{%
+  \vspace{-1.8cm}%
+  {\color{accent}\rule{\textwidth}{2pt}}\\[0.6em]%
+  {\LARGE\bfseries\color{accent} SC4064 Assignment 2 Report}\\[0.4em]%
+  {\color{accent}\rule{\textwidth}{0.8pt}}%
+}
+\author{Pu Fanyi \\ U2220175K \\ \href{mailto:FPU001@e.ntu.edu.sg}{FPU001@e.ntu.edu.sg}}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+\vspace{-0.6cm}
+
+All programs were compiled with \code{nvcc -O2 -std=c++20 -lcusparse} and tested on the platform in Table~\ref{tab:env}. Kernel timing uses CUDA events; each configuration is preceded by a context warm-up.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{10pt}
+\begin{tabular}{>{\bfseries\color{accent}}l l}
+\rowcolor{tableheader}
+\thead{Component} & \thead{Details} \\
+\rowcolor{tablerow} OS             & Ubuntu 24.04.4 LTS (Noble Numbat) \\
+                    Kernel         & Linux 5.14.0-284.25.1.el9\_2.x86\_64 \\
+\rowcolor{tablerow} CPU            & 2$\times$ Intel Xeon Gold 6448Y (128 threads) \\
+                    RAM            & 2.0\,TiB \\
+\rowcolor{tablerow} GPU            & 8$\times$ NVIDIA H100 80\,GB HBM3 \\
+                    NVIDIA Driver  & 550.90.07 \\
+\rowcolor{tablerow} CUDA Toolkit   & 13.1 (V13.1.115) \\
+                    GCC/G++        & 14.2.0 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Experimental environment.}
+\label{tab:env}
+\end{table}
+\vspace{-0.4cm}
+
+% ════════════════════════════════════════════════════════
+\section{Problem Setup and Implementation}
+% ════════════════════════════════════════════════════════
+
+We solve the 2D wave equation $\partial^2 u/\partial t^2 = c^2 \nabla^2 u$ on $[0,L]^2$ with $c=1$, $\Delta x = \Delta y = 0.01$, $\Delta t = 0.005$, giving $\lambda^2 = c^2 \Delta t^2 / \Delta x^2 = 0.25$ ($\lambda = 0.5 \le 1/\sqrt{2}$). Initial condition: $u(0,x,y) = \sin(\pi x)\sin(\pi y)$, $\partial_t u(0) = 0$; Dirichlet boundaries $u = 0$. The analytical solution $u(t,x,y) = \cos(c\sqrt{2}\,\pi\,t)\sin(\pi x)\sin(\pi y)$ is used for verification.
+
+\textbf{Implementations.}\quad Three methods share the same initialization and first-step kernel. \textbf{(A1)} Global memory: each thread computes one interior point directly from global memory. \textbf{(A2)} Shared memory: a 2D tile with 1-cell halo is loaded cooperatively into shared memory; border threads load the halo elements; a \code{\_\_syncthreads()} precedes stencil computation. \textbf{(B)} cuSPARSE: the discrete Laplacian is stored as a CSR matrix (${\le}\,5$ non-zeros per row); each time step calls \code{cusparseSpMV} followed by a fused vector-update kernel.
+
+% ════════════════════════════════════════════════════════
+\section{Block Size Study ($L = 1$)}
+% ════════════════════════════════════════════════════════
+
+All results use 200 time steps (199 timed kernel calls). The $101 \times 101$ grid ($99^2 = 9{,}801$ interior points) is very small for the H100.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{>{\centering\arraybackslash}p{1.6cm}
+                >{\centering\arraybackslash}p{2.2cm}
+                >{\centering\arraybackslash}p{2.2cm}
+                >{\centering\arraybackslash}p{2.0cm}
+                >{\centering\arraybackslash}p{2.0cm}}
+\rowcolor{tableheader}
+\thead{Block} & \thead{Global (ms)} & \thead{Shared (ms)} & \thead{BW$_G$ (GB/s)} & \thead{BW$_S$ (GB/s)} \\
+\rowcolor{tablerow} $(8,8)$   & 0.489 & 0.662 & 191.3 & 141.3 \\
+                    $(16,16)$ & \textbf{0.479} & \textbf{0.639} & \textbf{195.6} & \textbf{146.6} \\
+\rowcolor{tablerow} $(32,8)$  & 0.481 & 0.652 & 194.6 & 143.5 \\
+                    $(32,32)$ & 0.500 & 0.647 & 187.1 & 144.7 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Total kernel time for 199 steps ($L=1$, $101 \times 101$ grid). Max error: $8.81 \times 10^{-5}$ for all.}
+\label{tab:block}
+\end{table}
+
+\textbf{Analysis.}\quad Differences are small because the grid is tiny. $(16,16)$ (256 threads) is marginally best: it provides enough warps (8) for latency hiding without the occupancy penalty of $(32,32)$ (1024 threads, only 2 resident blocks per SM). On this grid, global memory \emph{outperforms} shared memory by ${\sim}1.3\times$ because the entire working set ($3 \times 101^2 \times 8 = 245$\,KB) fits in L2 cache, making the extra shared-memory bookkeeping (halo loads, synchronization) pure overhead.
+
+% ════════════════════════════════════════════════════════
+\section{Scaling Study}
+% ════════════════════════════════════════════════════════
+
+The domain is enlarged to $[0,L]^2$ for $L \in \{1,2,4,8\}$ while keeping $\Delta x, \Delta t$ fixed. Block size $(16,16)$.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{>{\centering\arraybackslash}p{0.6cm}
+                >{\centering\arraybackslash}p{0.9cm}
+                >{\centering\arraybackslash}p{1.6cm}
+                >{\centering\arraybackslash}p{1.6cm}
+                >{\centering\arraybackslash}p{1.6cm}
+                >{\centering\arraybackslash}p{1.6cm}
+                >{\centering\arraybackslash}p{1.5cm}
+                >{\centering\arraybackslash}p{1.5cm}}
+\rowcolor{tableheader}
+\thead{$L$} & \thead{$N_x$} & \thead{Interior} & \thead{Global} & \thead{Shared} & \thead{cuSPARSE} & \thead{BW$_G$} & \thead{BW$_S$} \\
+\rowcolor{tableheader}
+ & & \thead{points} & \thead{(ms)} & \thead{(ms)} & \thead{(ms)} & \thead{(GB/s)} & \thead{(GB/s)} \\
+\rowcolor{tablerow} 1 & 101  & 9\,801     & 0.47   & 0.64   & 6.02   & 200   & 147  \\
+                    2 & 201  & 39\,601    & 0.49   & 0.66   & 2.87   & 778   & 575  \\
+\rowcolor{tablerow} 4 & 401  & 159\,201   & 0.58   & 0.74   & 3.51   & 2\,610 & 2\,063 \\
+                    8 & 801  & 638\,401   & 1.06   & 1.40   & 8.04   & 5\,735 & 4\,352 \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Total kernel time for 199 steps (block $16 \times 16$). Max error: $8.81 \times 10^{-5}$ for all.}
+\label{tab:scale}
+\end{table}
+
+\textbf{Runtime scaling.}\quad From $L\!=\!1$ to $L\!=\!8$ the interior points increase $65\times$, while global-memory time grows only $2.3\times$. For small grids ($L \le 2$), kernel launch overhead dominates; true scaling emerges at $L \ge 4$. From $L\!=\!4$ to $L\!=\!8$ (a $4\times$ workload increase), global-memory time increases $1.8\times$ --- sub-linear because larger grids amortise fixed overhead.
+
+\textbf{Effective bandwidth.}\quad Using the assignment's formula ($6 \times 8 = 48$\,bytes per point), the global-memory kernel reaches \textbf{5\,735\,GB/s} at $L\!=\!8$, far exceeding the H100's HBM3 peak (${\sim}3\,350$\,GB/s). This is because the total working set ($3 \times 801^2 \times 8 \approx 15.4$\,MB) fits entirely in the H100's 50\,MB L2 cache, so most accesses are served at L2 bandwidth. The kernel is \emph{memory-bandwidth-bound}: the 5-point stencil performs only 7 FLOPs per 48 bytes ($0.15$\,FLOP/byte), well below the H100's compute-to-bandwidth ratio.
+
+\textbf{cuSPARSE comparison.}\quad The library-based solver is $6$--$13\times$ slower than the custom stencil. The SpMV must traverse CSR metadata (row pointers, column indices) and performs indirect memory accesses, which undermine cache locality. Additionally, each time step requires \emph{two} kernel launches (SpMV + vector update) versus one for the stencil. For structured-grid problems where the stencil pattern is known at compile time, a hand-written kernel eliminates all indexing overhead.
+
+% ════════════════════════════════════════════════════════
+\section{Visualization}
+% ════════════════════════════════════════════════════════
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{out/heatmap_panel.pdf}
+\vspace{-0.4em}
+\caption{Wave field evolution on $[0,1]^2$ at five time instants. The wave oscillates as $\cos(\sqrt{2}\,\pi\,t)$: positive at $t\!=\!0$, crossing zero near $t\!\approx\!0.35$\,s, and reaching maximum negative amplitude at $t\!\approx\!0.71$\,s.}
+\label{fig:heatmap}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.42\textwidth]{out/surface_step0.pdf}\hfill
+\includegraphics[width=0.42\textwidth]{out/surface_step150.pdf}
+\vspace{-0.4em}
+\caption{Surface plots at $t = 0$ (left, initial condition $\sin(\pi x)\sin(\pi y)$) and $t = 0.75$\,s (right, amplitude inverted to ${\approx}{-}0.71$).}
+\label{fig:surface}
+\end{figure}
+
+% ════════════════════════════════════════════════════════
+\section{Discussion}
+% ════════════════════════════════════════════════════════
+
+\textbf{Correctness.}\quad The $L_\infty$ error of $8.81 \times 10^{-5}$ is consistent across all three methods and all domain sizes, confirming both algorithmic correctness and that the error depends only on $\Delta x$ and $\Delta t$ (which are fixed throughout the scaling study), as expected for a second-order finite-difference scheme.
+
+\textbf{Shared memory overhead.}\quad The shared-memory kernel is ${\sim}1.3\times$ slower than the global-memory kernel across all domain sizes. Because these grids are small enough to fit in L2 cache, the five-point stencil already enjoys near-optimal data reuse without shared memory. The shared-memory version incurs extra cost for halo loading (4 conditional branches per thread) and a \code{\_\_syncthreads()} barrier per step, which are not compensated by reduced global-memory traffic. On larger grids (e.g., $4096 \times 4096$) that exceed L2 capacity, the shared-memory tiling would show a clear advantage.
+
+\textbf{Block size.}\quad Differences are modest ($<6\%$) because all tested configurations produce enough warps for adequate occupancy on these small grids. $(16,16)$ balances thread count (256) and block count, allowing the scheduler to distribute work evenly across SMs.
+
+\textbf{Memory-bound vs.\ compute-bound.}\quad The 5-point stencil update performs 7 FLOPs (4 additions for neighbours, 1 multiply-add for the centre, 1 subtraction, 1 FMA for the final update) while transferring at least 48 bytes (5 reads of \code{u\_curr}, 1 write of \code{u\_next}; the read of \code{u\_prev} adds another 8 bytes in practice). The operational intensity of ${\sim}0.15$\,FLOP/byte places the kernel firmly in the memory-bound regime of the H100 roofline (${\sim}51$\,TFLOPS FP64 peak, ${\sim}3.35$\,TB/s HBM3). Consequently, optimisation effort should focus on reducing memory traffic (e.g., temporal blocking) rather than increasing arithmetic throughput.
+
+\textbf{Linear scaling analysis.}\quad The table below shows per-step kernel time and the scaling ratio relative to $L\!=\!1$. If scaling were perfectly linear with grid points, the ratio column would match the workload multiplier.
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{>{\centering\arraybackslash}p{0.8cm}
+                >{\centering\arraybackslash}p{2.0cm}
+                >{\centering\arraybackslash}p{2.2cm}
+                >{\centering\arraybackslash}p{2.2cm}
+                >{\centering\arraybackslash}p{2.2cm}}
+\rowcolor{tableheader}
+\thead{$L$} & \thead{Workload$\;\times$} & \thead{Global $\mu$s/step} & \thead{Time$\;\times$} & \thead{Efficiency} \\
+\rowcolor{tablerow} 1 & $1\times$   & 2.35 & $1.0\times$  & ---    \\
+                    2 & $4\times$   & 2.44 & $1.04\times$ & $3.9\times$  \\
+\rowcolor{tablerow} 4 & $16\times$  & 2.93 & $1.25\times$ & $12.8\times$ \\
+                    8 & $65\times$  & 5.34 & $2.27\times$ & $28.6\times$ \\
+\end{tabular}
+\vspace{-0.3em}
+\caption{Per-step timing and scaling efficiency (global memory, block $16\!\times\!16$). ``Efficiency'' = workload multiplier\,/\,time multiplier, showing how many $\times$ more work is done per unit time relative to $L\!=\!1$.}
+\label{tab:efficiency}
+\end{table}
+\vspace{-0.3cm}
+
+At $L\!=\!8$ the kernel processes $65\times$ more interior points but takes only $2.27\times$ longer per step, yielding a $28.6\times$ throughput gain. This dramatic sub-linear scaling arises because the $L\!=\!1$ grid (9\,801 points) drastically under-utilises the H100's 132 SMs and memory subsystem; kernel launch overhead alone accounts for ${\sim}2\,\mu$s. As the grid grows, fixed costs are amortised and more SMs are saturated. The H100 architecture is designed for grids of millions of points; at the sizes tested here, even $L\!=\!8$ leaves significant headroom.
+
+\textbf{cuSPARSE non-monotonic timing.}\quad Interestingly, cuSPARSE is \emph{faster} at $L\!=\!2$ (2.87\,ms) than $L\!=\!1$ (6.02\,ms). This reflects cuSPARSE's internal tuning: the library selects algorithms based on matrix size, and very small matrices (${\sim}10$K rows) may trigger a less optimised code path. At $L\!\ge\!4$ the cost grows proportionally with nnz as expected.
+
+\end{document}
