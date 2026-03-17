@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -114,25 +115,31 @@ __global__ void waveStepShared(double *u_next, const double *u_curr,
 
     // Load center element
     double center = 0.0;
-    if (i < Ny && j < Nx) center = u_curr[i * Nx + j];
+    if (i < Ny && j < Nx) {
+        center = u_curr[i * Nx + j];
+    }
     tile[si * tileW + sj] = center;
 
     // Top halo
-    if (ty == 0)
+    if (ty == 0) {
         tile[0 * tileW + sj] = (i > 0 && j < Nx)
                                     ? u_curr[(i - 1) * Nx + j] : 0.0;
+    }
     // Bottom halo
-    if (ty == (int)blockDim.y - 1)
+    if (ty == (int)blockDim.y - 1) {
         tile[(blockDim.y + 1) * tileW + sj] =
             (i + 1 < Ny && j < Nx) ? u_curr[(i + 1) * Nx + j] : 0.0;
+    }
     // Left halo
-    if (tx == 0)
+    if (tx == 0) {
         tile[si * tileW + 0] = (j > 0 && i < Ny)
                                     ? u_curr[i * Nx + (j - 1)] : 0.0;
+    }
     // Right halo
-    if (tx == (int)blockDim.x - 1)
+    if (tx == (int)blockDim.x - 1) {
         tile[si * tileW + (int)blockDim.x + 1] =
             (j + 1 < Nx && i < Ny) ? u_curr[i * Nx + (j + 1)] : 0.0;
+    }
 
     __syncthreads();
 
@@ -155,8 +162,9 @@ __global__ void updateFromLap(double *u_next, const double *u_curr,
                               const double *u_prev, const double *lap,
                               int n, double lambda2) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n)
+    if (idx < n) {
         u_next[idx] = 2.0 * u_curr[idx] - u_prev[idx] + lambda2 * lap[idx];
+    }
 }
 
 // u1 = u0 + 0.5·λ²·lap   (first time step, interior-only)
@@ -164,8 +172,9 @@ __global__ void firstStepFromLap(double *u1, const double *u0,
                                  const double *lap, int n,
                                  double half_lambda2) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n)
+    if (idx < n) {
         u1[idx] = u0[idx] + half_lambda2 * lap[idx];
+    }
 }
 
 // Extract interior values from full grid → contiguous interior vector
@@ -214,8 +223,8 @@ void buildLaplacianCSR(int M,
     rowPtr.resize(N + 1);
     colInd.clear();
     values.clear();
-    colInd.reserve(5 * N);
-    values.reserve(5 * N);
+    colInd.reserve(static_cast<size_t>(5) * N);
+    values.reserve(static_cast<size_t>(5) * N);
 
     int nnz = 0;
     for (int i = 0; i < M; i++) {
@@ -271,7 +280,7 @@ void saveFieldBinary(const double *h_u, int Nx, int Ny,
 double computeMaxError(const double *h_u, int Nx, int Ny,
                        double dx, double dy, int numSteps) {
     double t = numSteps * DT;
-    double cosCoeff = cos(C_WAVE * sqrt(2.0) * M_PI * t);
+    double cosCoeff = cos(C_WAVE * std::numbers::sqrt2 * M_PI * t);
     double maxErr = 0.0;
     for (int i = 0; i < Ny; i++) {
         for (int j = 0; j < Nx; j++) {
@@ -279,7 +288,7 @@ double computeMaxError(const double *h_u, int Nx, int Ny,
             double y = i * dy;
             double exact = cosCoeff * sin(M_PI * x) * sin(M_PI * y);
             double err = fabs(h_u[i * Nx + j] - exact);
-            if (err > maxErr) maxErr = err;
+            maxErr = std::max(err, maxErr);
         }
     }
     return maxErr;
@@ -328,7 +337,7 @@ TimingResult runGlobal(int Nx, int Ny, int numSteps, int bx, int by) {
     CHECK_CUDA(cudaEventElapsedTime(&totalMs, start, stop));
 
     // Copy result and compute error
-    std::vector<double> h_u(Nx * Ny);
+    std::vector<double> h_u(static_cast<size_t>(Nx) * Ny);
     CHECK_CUDA(cudaMemcpy(h_u.data(), u_curr, bytes, cudaMemcpyDeviceToHost));
     double maxErr = computeMaxError(h_u.data(), Nx, Ny, DX, DY, numSteps);
 
@@ -343,7 +352,8 @@ TimingResult runGlobal(int Nx, int Ny, int numSteps, int bx, int by) {
     CHECK_CUDA(cudaFree(d_u1));
     CHECK_CUDA(cudaFree(d_u2));
 
-    return {totalMs, perStep, bw, maxErr};
+    return {.totalMs = totalMs, .perStepMs = perStep,
+            .bandwidthGBs = bw, .maxError = maxErr};
 }
 
 // ── (A2) Shared memory solver ─────────────────────────────────────────────
@@ -385,7 +395,7 @@ TimingResult runShared(int Nx, int Ny, int numSteps, int bx, int by) {
     float totalMs = 0.0f;
     CHECK_CUDA(cudaEventElapsedTime(&totalMs, start, stop));
 
-    std::vector<double> h_u(Nx * Ny);
+    std::vector<double> h_u(static_cast<size_t>(Nx) * Ny);
     CHECK_CUDA(cudaMemcpy(h_u.data(), u_curr, bytes, cudaMemcpyDeviceToHost));
     double maxErr = computeMaxError(h_u.data(), Nx, Ny, DX, DY, numSteps);
 
@@ -400,7 +410,8 @@ TimingResult runShared(int Nx, int Ny, int numSteps, int bx, int by) {
     CHECK_CUDA(cudaFree(d_u1));
     CHECK_CUDA(cudaFree(d_u2));
 
-    return {totalMs, perStep, bw, maxErr};
+    return {.totalMs = totalMs, .perStepMs = perStep,
+            .bandwidthGBs = bw, .maxError = maxErr};
 }
 
 // ── (B) cuSPARSE solver ──────────────────────────────────────────────────
@@ -462,17 +473,18 @@ TimingResult runCuSPARSE(int Nx, int Ny, int numSteps) {
     CHECK_CUDA(cudaFree(d_full1));
 
     // Setup cuSPARSE
-    cusparseHandle_t handle;
+    cusparseHandle_t handle = nullptr;
     CHECK_CUSPARSE(cusparseCreate(&handle));
 
-    cusparseSpMatDescr_t matDescr;
+    cusparseSpMatDescr_t matDescr = nullptr;
     CHECK_CUSPARSE(cusparseCreateCsr(
         &matDescr, totalInt, totalInt, nnz,
         d_rowPtr, d_colInd, d_csrVal,
         CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
         CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
 
-    cusparseDnVecDescr_t vecX, vecY;
+    cusparseDnVecDescr_t vecX = nullptr;
+    cusparseDnVecDescr_t vecY = nullptr;
     CHECK_CUSPARSE(cusparseCreateDnVec(&vecX, totalInt, d_curr, CUDA_R_64F));
     CHECK_CUSPARSE(cusparseCreateDnVec(&vecY, totalInt, d_v,    CUDA_R_64F));
 
@@ -484,7 +496,9 @@ TimingResult runCuSPARSE(int Nx, int Ny, int numSteps) {
         CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize));
 
     void *d_buffer = nullptr;
-    if (bufferSize > 0) CHECK_CUDA(cudaMalloc(&d_buffer, bufferSize));
+    if (bufferSize > 0) {
+        CHECK_CUDA(cudaMalloc(&d_buffer, bufferSize));
+    }
 
     // Time the main loop
     cudaEvent_t start, stop;
@@ -519,7 +533,7 @@ TimingResult runCuSPARSE(int Nx, int Ny, int numSteps) {
     CHECK_CUDA(cudaMemset(d_fullOut, 0, fullBytes));
     scatterInterior<<<blocks1d, threads1d>>>(d_curr, d_fullOut, Nx, M);
 
-    std::vector<double> h_u(Nx * Ny);
+    std::vector<double> h_u(static_cast<size_t>(Nx) * Ny);
     CHECK_CUDA(cudaMemcpy(h_u.data(), d_fullOut, fullBytes,
                           cudaMemcpyDeviceToHost));
     double maxErr = computeMaxError(h_u.data(), Nx, Ny, DX, DY, numSteps);
@@ -536,7 +550,9 @@ TimingResult runCuSPARSE(int Nx, int Ny, int numSteps) {
     CHECK_CUSPARSE(cusparseDestroyDnVec(vecY));
     CHECK_CUSPARSE(cusparseDestroySpMat(matDescr));
     CHECK_CUSPARSE(cusparseDestroy(handle));
-    if (d_buffer) CHECK_CUDA(cudaFree(d_buffer));
+    if (d_buffer) {
+        CHECK_CUDA(cudaFree(d_buffer));
+    }
     CHECK_CUDA(cudaFree(d_rowPtr));
     CHECK_CUDA(cudaFree(d_colInd));
     CHECK_CUDA(cudaFree(d_csrVal));
@@ -546,7 +562,8 @@ TimingResult runCuSPARSE(int Nx, int Ny, int numSteps) {
     CHECK_CUDA(cudaFree(d_v));
     CHECK_CUDA(cudaFree(d_fullOut));
 
-    return {totalMs, perStep, bw, maxErr};
+    return {.totalMs = totalMs, .perStepMs = perStep,
+            .bandwidthGBs = bw, .maxError = maxErr};
 }
 
 // ── Visualization data export (not timed) ─────────────────────────────────
@@ -568,11 +585,10 @@ void runVisualization(int Nx, int Ny, int numSteps,
     initWaveField<<<grid, block>>>(d_u0, Nx, Ny, DX, DY);
     CHECK_CUDA(cudaDeviceSynchronize());
 
-    std::vector<double> h_u(Nx * Ny);
+    std::vector<double> h_u(static_cast<size_t>(Nx) * Ny);
 
     auto maybeSave = [&](int step, double *d_u) {
-        if (std::find(saveSteps.begin(), saveSteps.end(), step)
-            != saveSteps.end()) {
+        if (std::ranges::find(saveSteps, step) != saveSteps.end()) {
             CHECK_CUDA(cudaMemcpy(h_u.data(), d_u, bytes,
                                   cudaMemcpyDeviceToHost));
             saveFieldBinary(h_u.data(), Nx, Ny,
@@ -593,8 +609,7 @@ void runVisualization(int Nx, int Ny, int numSteps,
                                         Nx, Ny, LAMBDA2);
         double *tmp = u_prev; u_prev = u_curr; u_curr = u_next; u_next = tmp;
 
-        if (std::find(saveSteps.begin(), saveSteps.end(), step)
-            != saveSteps.end()) {
+        if (std::ranges::find(saveSteps, step) != saveSteps.end()) {
             CHECK_CUDA(cudaMemcpy(h_u.data(), u_curr, bytes,
                                   cudaMemcpyDeviceToHost));
             saveFieldBinary(h_u.data(), Nx, Ny,
@@ -633,7 +648,11 @@ int main() {
                "Block", "Global(ms)", "Shared(ms)", "BW_G(GB/s)",
                "BW_S(GB/s)", "Err_G", "Err_S");
 
-        struct { int bx, by; } sizes[] = {{8,8}, {16,16}, {32,8}, {32,32}};
+        struct BlockSize { int bx, by; };
+        BlockSize sizes[] = {
+            {.bx = 8, .by = 8}, {.bx = 16, .by = 16},
+            {.bx = 32, .by = 8}, {.bx = 32, .by = 32}
+        };
         for (auto &s : sizes) {
             auto rg = runGlobal(Nx, Ny, NUM_STEPS, s.bx, s.by);
             auto rs = runShared(Nx, Ny, NUM_STEPS, s.bx, s.by);
