@@ -3,7 +3,7 @@
 **Instructor:** Loke Yuan Ren (yrloke@ntu.edu.sg)
 **College of Computing and Data Science, Nanyang Technological University**
 
-**Due:** Friday, Week 8: March 13, 2026, 11:59 PM (late submissions will **not** be accepted)
+**Due:** Friday, Week 8: March 17, 2026, 11:59 PM (late submissions will **not** be accepted)
 
 ---
 
