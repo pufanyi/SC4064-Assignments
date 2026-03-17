@@ -17,7 +17,8 @@ extern "C" {
 
 #ifndef __cudaConfigureCall_defined
 cudaError_t cudaConfigureCall(dim3 gridDim, dim3 blockDim,
-                              size_t sharedMem, cudaStream_t stream);
+                              size_t sharedMem = 0,
+                              cudaStream_t stream = nullptr);
 #endif
 
 #ifdef __cplusplus
