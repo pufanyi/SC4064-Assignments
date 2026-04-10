@@ -30,14 +30,12 @@
 #align(center)[
   #v(0.5em)
   #text(size: 16pt, weight: "bold")[
-    GPU-Accelerated Image Processing Pipeline: \
-    Performance Analysis on NVIDIA H100
+    SC4064 GPU Programming -- Assignment 3
   ]
   #v(0.6em)
   #text(size: 11pt)[Fanyi Pu]
   #v(0.2em)
   #text(size: 9.5pt, fill: gray.darken(20%))[
-    SC4064 GPU Programming -- Assignment 3 \
     College of Computing and Data Science, Nanyang Technological University
   ]
   #v(0.8em)
