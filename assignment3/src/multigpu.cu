@@ -88,8 +88,8 @@ static void process_batch_on_device(std::vector<ImageEntry>& sub_batch, int devi
         float h_cdf[256];
         cudaMemcpy(h_cdf, d_cdf[i], 256 * sizeof(float), cudaMemcpyDeviceToHost);
         float cdf_min = 0.f;
-        for (int b = 0; b < 256; b++) {
-            if (h_cdf[b] > 0.f) { cdf_min = h_cdf[b]; break; }
+        for (float b : h_cdf) {
+            if (b > 0.f) { cdf_min = b; break; }
         }
 
         // Stage 3C: Equalisation

@@ -27,8 +27,7 @@ def plot_heatmap(data, Nx, Ny, title, filename):
     y = np.linspace(0, (Ny - 1) * DY, Ny)
     vmax = max(abs(data.min()), abs(data.max()), 1e-12)
     plt.figure(figsize=(5.5, 4.5))
-    plt.pcolormesh(x, y, data, cmap="RdBu_r", shading="auto",
-                   vmin=-vmax, vmax=vmax)
+    plt.pcolormesh(x, y, data, cmap="RdBu_r", shading="auto", vmin=-vmax, vmax=vmax)
     plt.colorbar(label="u(x, y)")
     plt.xlabel("x")
     plt.ylabel("y")
@@ -44,8 +43,9 @@ def plot_surface(data, Nx, Ny, title, filename):
     X, Y = np.meshgrid(x, y)
     fig = plt.figure(figsize=(7, 5))
     ax = fig.add_subplot(111, projection="3d")
-    ax.plot_surface(X, Y, data, cmap="RdBu_r", linewidth=0, antialiased=True,
-                    rstride=2, cstride=2)
+    ax.plot_surface(
+        X, Y, data, cmap="RdBu_r", linewidth=0, antialiased=True, rstride=2, cstride=2
+    )
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("u")
@@ -65,15 +65,26 @@ def main():
         data, Nx, Ny = read_field(binfile)
         t = step * DT
         label = f"t = {t:.3f} s"
-        plot_heatmap(data, Nx, Ny, f"Wave field — {label}",
-                     os.path.join(OUT_DIR, f"heatmap_step{step}.pdf"))
-        plot_surface(data, Nx, Ny, f"Wave field — {label}",
-                     os.path.join(OUT_DIR, f"surface_step{step}.pdf"))
+        plot_heatmap(
+            data,
+            Nx,
+            Ny,
+            f"Wave field — {label}",
+            os.path.join(OUT_DIR, f"heatmap_step{step}.pdf"),
+        )
+        plot_surface(
+            data,
+            Nx,
+            Ny,
+            f"Wave field — {label}",
+            os.path.join(OUT_DIR, f"surface_step{step}.pdf"),
+        )
         print(f"  Plotted step {step} ({label})")
 
     # Combined heatmap panel (for the report)
-    fig, axes = plt.subplots(1, 5, figsize=(20, 3.6),
-                             gridspec_kw={"wspace": 0.05, "right": 0.92})
+    fig, axes = plt.subplots(
+        1, 5, figsize=(20, 3.6), gridspec_kw={"wspace": 0.05, "right": 0.92}
+    )
     for ax, step in zip(axes, steps):
         binfile = os.path.join(OUT_DIR, f"field_step{step}.bin")
         if not os.path.exists(binfile):
@@ -82,8 +93,9 @@ def main():
         x = np.linspace(0, (Nx - 1) * DX, Nx)
         y = np.linspace(0, (Ny - 1) * DY, Ny)
         vmax = 1.0
-        im = ax.pcolormesh(x, y, data, cmap="RdBu_r", shading="auto",
-                           vmin=-vmax, vmax=vmax)
+        im = ax.pcolormesh(
+            x, y, data, cmap="RdBu_r", shading="auto", vmin=-vmax, vmax=vmax
+        )
         ax.set_title(f"t = {step * DT:.2f} s")
         ax.set_xlabel("x")
         if step == 0:

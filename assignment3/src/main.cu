@@ -37,10 +37,15 @@ int main(int argc, char** argv)
 
     // ── Parse arguments ───────────────────────────────────────────────────
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--input")      == 0 && i+1 < argc) input_dir  = argv[++i];
-        else if (strcmp(argv[i], "--output") == 0 && i+1 < argc) output_dir = argv[++i];
-        else if (strcmp(argv[i], "--single-gpu") == 0)           single_gpu = true;
-        else { print_usage(argv[0]); return 1; }
+        if (strcmp(argv[i], "--input") == 0 && i+1 < argc) {
+            input_dir = argv[++i];
+        } else if (strcmp(argv[i], "--output") == 0 && i+1 < argc) {
+            output_dir = argv[++i];
+        } else if (strcmp(argv[i], "--single-gpu") == 0) {
+            single_gpu = true;
+        } else {
+            print_usage(argv[0]); return 1;
+        }
     }
 
     // ── Create output directory ───────────────────────────────────────────

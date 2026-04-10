@@ -124,7 +124,9 @@ __global__ void sobelKernel(
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= width || y >= height) return;
+    if (x >= width || y >= height) {
+        return;
+    }
 
     // Read the 3x3 neighbourhood with clamp-to-edge (as integers for precision).
     int p[3][3];
