@@ -16,3 +16,21 @@ out
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# CUDA build artifacts
+pipeline
+*.nsys-rep
+*.sqlite
+*.qdrep
+
+# Python / uv
+.venv/
+.python-version
+__pycache__/
+pyproject.toml
+uv.lock
+main.py
+
+# Assignment output
+output/
+*_submission.tar.gz
