@@ -4,8 +4,8 @@
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mpatches  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
 
 # Extracted from nsys trace (first 4 images, single-GPU mode)
 # Times in microseconds, offset to start at 0
@@ -77,9 +77,7 @@ ax.set_yticklabels(
     fontsize=7.5,
 )
 ax.set_xlabel("Time (μs)", fontsize=9)
-ax.set_title(
-    "GPU Timeline — No Overlap Between Streams", fontsize=10, fontweight="bold"
-)
+ax.set_title("GPU Timeline — No Overlap Between Streams", fontsize=10, fontweight="bold")
 
 # Legend
 legend_patches = [

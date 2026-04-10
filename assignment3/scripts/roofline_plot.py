@@ -66,20 +66,14 @@ for name, data in kernels.items():
 # Labels
 ax.set_xlabel("Arithmetic Intensity (FLOPs/Byte)", fontsize=10)
 ax.set_ylabel("Performance (GFLOPs/s)", fontsize=10)
-ax.set_title(
-    "Roofline Model — NVIDIA H100 80GB SXM (FP32)", fontsize=10, fontweight="bold"
-)
+ax.set_title("Roofline Model — NVIDIA H100 80GB SXM (FP32)", fontsize=10, fontweight="bold")
 
 ax.set_xlim(0.01, 1000)
 ax.set_ylim(0.001, 200000)
 
 # Add region labels
-ax.text(
-    0.15, 300, "Memory\nBound", fontsize=8, color="#555", ha="center", style="italic"
-)
-ax.text(
-    200, 300, "Compute\nBound", fontsize=8, color="#555", ha="center", style="italic"
-)
+ax.text(0.15, 300, "Memory\nBound", fontsize=8, color="#555", ha="center", style="italic")
+ax.text(200, 300, "Compute\nBound", fontsize=8, color="#555", ha="center", style="italic")
 
 # Peak annotations
 ax.text(

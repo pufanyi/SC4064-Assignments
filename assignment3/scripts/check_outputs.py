@@ -15,6 +15,7 @@ Usage:
 import argparse
 import os
 import sys
+
 import numpy as np
 
 
@@ -38,12 +39,8 @@ def load_pgm(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, help="Directory of student outputs")
-    parser.add_argument(
-        "--reference", required=True, help="Directory of reference outputs"
-    )
-    parser.add_argument(
-        "--tolerance", type=int, default=2, help="Max allowed pixel difference"
-    )
+    parser.add_argument("--reference", required=True, help="Directory of reference outputs")
+    parser.add_argument("--tolerance", type=int, default=2, help="Max allowed pixel difference")
     args = parser.parse_args()
 
     # Map: stem → reference path for the three output types
@@ -63,9 +60,7 @@ def main():
     failed = 0
     missing = 0
 
-    print(
-        f"\n{'Image':<45} {'Stage':<12} {'MaxDiff':>8} {'MeanDiff':>10} {'Result':>8}"
-    )
+    print(f"\n{'Image':<45} {'Stage':<12} {'MaxDiff':>8} {'MeanDiff':>10} {'Result':>8}")
     print("-" * 90)
 
     for fname in student_files:
@@ -105,9 +100,7 @@ def main():
             continue
 
         if student.shape != ref.shape:
-            print(
-                f"  {fname:<45} [SHAPE MISMATCH] student={student.shape} ref={ref.shape}"
-            )
+            print(f"  {fname:<45} [SHAPE MISMATCH] student={student.shape} ref={ref.shape}")
             failed += 1
             continue
 
